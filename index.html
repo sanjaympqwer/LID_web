@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Lost & Found - Live</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: Arial, sans-serif; background: #0b1020; color: #eee; margin: 0; padding: 20px; }
+    h1 { margin: 0 0 10px 0; }
+    .sub { color: #9aa; margin-bottom: 20px; }
+    .bar { display:flex; gap:8px; align-items:center; margin-bottom: 16px; }
+    input, button { padding: 8px 10px; border-radius: 6px; border: 1px solid #24304f; background:#151b2e; color:#eee; }
+    button { cursor:pointer; background:#1b2340; }
+    table { width: 100%; border-collapse: collapse; background: #151b2e; }
+    th, td { padding: 10px; border-bottom: 1px solid #24304f; text-align: left; }
+    th { background: #1b2340; }
+    .pill { padding: 2px 8px; border-radius: 999px; font-weight: bold; font-size: 12px; }
+    .pill.active { background: #2d7; color: #041; }
+    .pill.inactive { background: #d72; color: #fff; }
+    .muted { color:#9aa; font-size:12px; }
+  </style>
+</head>
+<body>
+  <h1>Lost & Found - Live</h1>
+  <div class="sub">Auto-updates every 5 seconds. Host this file anywhere (e.g., GitHub Pages). Point it at your backend with ?api=</div>
+
+  <div class="bar">
+    <label for="api">API base:</label>
+    <input id="api" type="text" style="min-width:340px" />
+    <button id="save">Save</button>
+    <span class="muted" id="status"></span>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Status</th>
+        <th>Object</th>
+        <th>Location</th>
+        <th>First seen</th>
+        <th>Last seen</th>
+        <th>Item ID</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+
+  <script>
+    function getQueryParam(name){
+      const params = new URLSearchParams(window.location.search);
+      return params.get(name);
+    }
+
+    function loadApiBase(){
+      const q = getQueryParam('api');
+      const stored = localStorage.getItem('lf_api_base');
+      const def = 'http://localhost:5000';
+      return q || stored || def;
+    }
+
+    function setApiBase(v){
+      localStorage.setItem('lf_api_base', v);
+      document.getElementById('api').value = v;
+    }
+
+    async function loadData(){
+      const api = document.getElementById('api').value.trim().replace(/\/$/, '');
+      const statusEl = document.getElementById('status');
+      try {
+        statusEl.textContent = 'Loading…';
+        const res = await fetch(`${api}/api/lost-events?status=all&limit=100`, { mode: 'cors' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const tbody = document.getElementById('tbody');
+        tbody.innerHTML = '';
+        for (const row of (data.items || [])) {
+          const tr = document.createElement('tr');
+          const statusClass = row.status === 'active' ? 'active' : 'inactive';
+          const statusText = row.status === 'active' ? 'ACTIVE' : 'INACTIVE';
+          tr.innerHTML = `
+            <td><span class="pill ${statusClass}">${statusText}</span></td>
+            <td>${row.class_name}</td>
+            <td>${row.location || '-'}</td>
+            <td>${new Date(row.first_seen_ts).toLocaleString()}</td>
+            <td>${new Date(row.last_seen_ts).toLocaleString()}</td>
+            <td>#${row.persistent_id ?? ''}</td>
+          `;
+          tbody.appendChild(tr);
+        }
+        statusEl.textContent = 'OK';
+      } catch (e) {
+        statusEl.textContent = `Error: ${e.message}`;
+      }
+    }
+
+    document.getElementById('save').onclick = () => {
+      const v = document.getElementById('api').value.trim();
+      setApiBase(v);
+      loadData();
+    };
+
+    (function init(){
+      setApiBase(loadApiBase());
+      loadData();
+      setInterval(loadData, 5000);
+    })();
+  </script>
+</body>
+</html>
+
+
